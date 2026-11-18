@@ -1,0 +1,25 @@
+[project]
+name = "grievance-portal-backend"
+version = "0.1.0"
+description = "Grievance Portal API (FastAPI)"
+authors = [
+    { name = "AditMonro3", email = "adi7ya.t@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "bcrypt==4.0.1",
+    "certifi>=2026.10.23",
+    "email-validator>=2.4.0",
+    "fastapi>=0.165.0",
+    "joblib>=1.6.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic-settings>=2.16.3",
+    "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.34",
+    "scikit-learn>=1.9.1",
+    "sqlalchemy>=2",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[tool.uv]
+package = false

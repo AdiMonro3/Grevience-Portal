@@ -1,0 +1,7 @@
+media/*
+!media/.gitkeep
+*.db
+.env
+.venv/
+__pycache__/
+app/ml/model.joblib
