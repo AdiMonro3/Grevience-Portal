@@ -68,9 +68,11 @@ Log in as `citizen1@gp.demo` in one browser and `sewer.w4@gp.demo` in a private 
 
 1. **Citizen, Nearby.** Shows issues within 3 km as a list or a map. Tap **Me too** on one: it raises that ticket's priority.
 2. **Citizen, Report issue.** Type the Hinglish complaint below, pick *High*, attach a photo, and submit. The success screen shows the ticket number, the detected category (with confidence), the department and the ward. The "Complaint received" email arrives.
-3. **Officer, My queue.** The new ticket appears (the queue auto-refreshes every 20 s), sorted by priority, then oldest first. Open it to see the description, photo, map pin, and the AI routing details (confidence, urgency reasons). Press **Pick up**: the citizen gets the officer's name and email. Press **Mark in progress**, then **Resolve** with a note and a proof photo.
-4. **Citizen, My complaints.** Open the ticket. It shows Resolved with the proof photo and the full timeline: Submitted → Open → Officer assigned → In progress → Resolved. Show the four emails in the inbox.
-5. **Triage.** As the citizen, go to **My location**, choose *Connaught Place (outside service area)*, and submit anything, or submit the vague complaint below from Pari Chowk. Log in as `admin@gp.demo`: **Triage** shows why each ticket is there, with the model's suggestion pre-filled. Pick a ward and press **Route**.
+3. **Officer, My queue.** The new ticket appears (the queue auto-refreshes every 20 s), sorted by priority, then oldest first. The **Due** column shows each ticket's target fix time from its category (24 h for a sewer overflow), and the **⚠ Overdue** tab lists the late ones. Open the new ticket to see the description, photo, map pin, and the AI routing details (confidence, urgency reasons). Press **Pick up**: the citizen gets the officer's name and email. Press **Mark in progress**, then **Resolve** with a note and a proof photo.
+4. **Citizen, My complaints.** Open the ticket. It shows Resolved with the proof photo and the full timeline: Submitted → Open → Officer assigned → In progress → Resolved. Show the emails in the inbox.
+5. **Citizen, "Not fixed? Reopen".** On the same ticket, press **Reopen complaint** and say what is still wrong. It goes straight back to the same officer with a **↺ Reopened** badge and 10 extra priority points, so it jumps up their queue. The officer gets an email. Citizens can reopen within 14 days of the fix, at most twice.
+6. **Triage.** As the citizen, go to **My location**, choose *Connaught Place (outside service area)*, and submit anything, or submit the vague complaint below from Pari Chowk. Log in as `admin@gp.demo`: **Triage** shows why each ticket is there, with the model's suggestion pre-filled. Pick a ward and press **Route**.
+7. **Admin, Officers.** Filter to Ward 4 and press **Add officer** (for example, a second Sewerage officer). A password is suggested. Log in as them in another window: they see Ward 4's sewer queue straight away. Back as admin, **Deactivate** them: they are logged out on their next click, and any ticket they had picked up goes back to the queue.
 
 | Scripted complaint | Expected result |
 |---|---|
@@ -80,7 +82,15 @@ Log in as `citizen1@gp.demo` in one browser and `sewer.w4@gp.demo` in a private 
 | `Kooda 4 din se nahi utha, poori gali mein badbu aa rahi hai` | Garbage → Sanitation (`sanitation.w4`) |
 | `Bhai sahab kuch karo yahan, bahut pareshani hai` | Too vague → **Triage** (about 11% confidence) |
 
-Re-run `uv run python -m app.seed --demo` before the demo to start clean.
+### Before the demo
+
+- [ ] `cd backend && uv run pytest`: all tests pass.
+- [ ] `uv run python -m app.seed --demo`: starts clean. This **wipes the database**, including accounts you created yourself.
+- [ ] `backend/.env` has the Gmail app password and `EMAIL_OVERRIDE_TO=<your inbox>`; submit one complaint and check the email arrives.
+- [ ] Sign in with Google once, using an account listed under *Test users* in Google Cloud.
+- [ ] Open the app at `http://localhost:5173`, not `127.0.0.1`.
+- [ ] With Wi-Fi off, the *Quick pick a locality* buttons and the list views still work.
+- [ ] Run through the script above twice.
 
 **Offline fallback:** map tiles and address search need internet. Every map has a list or text equivalent, and the *Quick pick a locality* buttons set a location without any network.
 
@@ -94,10 +104,18 @@ On `POST /complaints`, in a single request:
 2. **ML** ([backend/app/services/ml.py](backend/app/services/ml.py)): TF-IDF over words + character n-grams (handles Hinglish spellings like *paani/pani*) → logistic regression over 17 categories. Urgency 1–3 comes from keyword rules (injury, live wire, children, open manhole, "4 din se", smell…), and the matched reasons are shown to the officer.
 3. **Geo** ([backend/app/services/geo.py](backend/app/services/geo.py)): a point-in-polygon check finds the ward.
 4. If confidence < 0.5, or no ward is found, the status is **TRIAGE**. Otherwise the category sets the department, the ward is set, and the status is **OPEN**.
-5. **Priority** ([backend/app/services/priority.py](backend/app/services/priority.py)) = 20 × severity + 10 × urgency + 5 × category weight + 3 × "Me too" votes (max 30). P1 ≥ 100, P2 ≥ 75, P3 ≥ 55.
+5. **Priority** ([backend/app/services/priority.py](backend/app/services/priority.py)) = 20 × severity + 10 × urgency + 5 × category weight + 3 × "Me too" votes (max 30) + 10 × times the citizen reopened it. P1 ≥ 100, P2 ≥ 75, P3 ≥ 55.
 6. The ticket number (`GRV-26-00021`) and history rows are written, and the "received" email is queued as a background task.
 
-The status rules live in one place, [backend/app/services/complaints.py](backend/app/services/complaints.py): `TRIAGE → OPEN → ASSIGNED → IN_PROGRESS → RESOLVED`, and `REJECTED` (reason required) from any open state. Officers can only see or act on tickets in their own department + ward. Outside it they get a 404, so they can't probe other wards' ticket numbers.
+The status rules live in one place, [backend/app/services/complaints.py](backend/app/services/complaints.py):
+- The normal path is `TRIAGE → OPEN → ASSIGNED → IN_PROGRESS → RESOLVED`.
+- `REJECTED` (reason required) can be reached from any open state.
+- A citizen can reopen a `RESOLVED` ticket within 14 days, at most twice. It goes back to the same officer (`ASSIGNED`), or to `OPEN` if that officer has left the ward.
+- When an admin deactivates or moves an officer, that officer's picked-up tickets go back to `OPEN`.
+
+Officers can only see or act on tickets in their own department + ward. Outside it they get a 404, so they can't probe other wards' ticket numbers.
+
+**SLA:** every category has a target fix time (12 h for live wires, 24 h for sewer overflows, 7 days for parks). A ticket is due that long after it was filed, and is *overdue* if it is still open after that. Tickets in triage have no due date until routed.
 
 Model accuracy: on sentences it has never seen (grouped 5-fold CV), the baseline is about 61% across 17 categories. Clear complaints usually score above 80% confidence. Unclear ones fall below 0.5 and go to triage, which is the safety net. Phase 4 improves the model.
 
@@ -109,9 +127,18 @@ Open `/docs` and use **Authorize** with a demo account.
 |---|---|
 | Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/google`, `GET /auth/providers`, `GET /auth/me`, `PUT /users/me/location` |
 | Reference | `GET /categories`, `/departments`, `/wards`, `/geo/ward`, `/geo/geocode`, `/geo/reverse` |
-| Citizen | `POST /complaints` (multipart), `GET /complaints/mine`, `GET /complaints/nearby`, `GET /complaints/{t}`, `GET /complaints/{t}/history`, `POST /complaints/{t}/upvote` |
+| Citizen | `POST /complaints` (multipart), `GET /complaints/mine`, `GET /complaints/nearby`, `GET /complaints/{t}`, `GET /complaints/{t}/history`, `POST /complaints/{t}/upvote`, `POST /complaints/{t}/reopen` |
 | Officer | `GET /officer/queue`, `GET /officer/complaints/{t}`, `POST …/pick`, `PATCH …/status`, `POST …/resolve` (multipart) |
-| Admin | `GET /admin/triage`, `PATCH /admin/complaints/{t}/assign`, `POST /admin/complaints/{t}/reject` |
+| Admin | `GET /admin/triage`, `PATCH /admin/complaints/{t}/assign`, `POST /admin/complaints/{t}/reject`, `GET /admin/officers`, `POST /admin/officers`, `PATCH /admin/officers/{id}` |
+
+## Tests
+
+```bash
+cd backend
+uv run pytest
+```
+
+The tests take about 12 seconds. They run on a temporary database and never send email. They cover routing and triage, jurisdiction, status changes, priority, Me too, sign-up, Google sign-in, reopen, SLA due dates and officer management ([backend/tests/](backend/tests/)).
 
 ## Project layout
 
@@ -123,6 +150,7 @@ backend/app/
   routers/   auth, meta, complaints, officer, admin
   services/  ml, geo, priority, email, storage, complaints (workflow)
   ml/        training_data.py, train.py -> model.joblib
+backend/tests/      pytest suite
 backend/media/      uploaded files (served at /media)
 frontend/src/
   api/client.js       axios + JWT + error messages
@@ -130,7 +158,7 @@ frontend/src/
   components/         StatusBadge, Timeline, MediaUpload, MediaGallery, MapView, ComplaintView, ProtectedRoute, Layout, Modal
   pages/citizen/      Location, Nearby, NewComplaint, Submitted, MyComplaints, ComplaintDetail
   pages/officer/      Queue, TicketDetail
-  pages/admin/        Triage
+  pages/admin/        Triage, Officers
 ```
 
 ## Known limitations (demo build)
@@ -143,9 +171,12 @@ frontend/src/
 ## Roadmap
 
 **Phase 3: complete the product**
-- [ ] Citizen reopen (`POST /complaints/{t}/reopen`) with a reason
-- [ ] Admin CRUD for departments, wards, categories, officers + admin panel UI
-- [ ] SLA deadlines (`categories.sla_hours` is already stored) + a scheduled escalation job
+- [x] Citizen reopen (`POST /complaints/{t}/reopen`) with a reason
+- [x] Admin: manage officers (add, deactivate, move) + admin panel page
+- [ ] Admin CRUD for departments, wards, categories
+- [x] SLA due dates and overdue tickets in the officer queue
+- [ ] SLA escalation: a scheduled job that bumps and reports overdue tickets
+- [ ] Profile page (name, phone, change password) + forgot password
 - [ ] Email retry + email log table; rate limiting on submit
 - [ ] PostgreSQL + Alembic; real ward shapes with shapely
 - [ ] Map view in the officer queue; loading/empty/error polish everywhere
@@ -157,6 +188,6 @@ frontend/src/
 - [ ] Analytics endpoints + dashboard (by ward/category, resolution time, SLA breaches), hotspot map
 
 **Phase 5: quality + deployment**
-- [ ] pytest for routing, jurisdiction, status transitions, priority
+- [x] pytest for routing, jurisdiction, status transitions, priority
 - [ ] Docker + docker-compose (API + Postgres), S3 storage, structured logs
 - [ ] Deploy the frontend (Vercel/Netlify, `VITE_API_URL`) and the API (Render/Railway); GitHub Actions CI
