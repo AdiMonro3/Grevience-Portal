@@ -31,8 +31,9 @@ from app.services.storage import SavedFile
 TRANSITIONS: dict[Status, set[Status]] = {
     Status.TRIAGE: {Status.OPEN, Status.REJECTED},
     Status.OPEN: {Status.ASSIGNED, Status.REJECTED},
-    Status.ASSIGNED: {Status.IN_PROGRESS, Status.RESOLVED, Status.REJECTED},
-    Status.IN_PROGRESS: {Status.RESOLVED, Status.REJECTED},
+    # -> OPEN only when an admin deactivates or moves the officer (unassign below)
+    Status.ASSIGNED: {Status.IN_PROGRESS, Status.RESOLVED, Status.REJECTED, Status.OPEN},
+    Status.IN_PROGRESS: {Status.RESOLVED, Status.REJECTED, Status.OPEN},
     Status.RESOLVED: {Status.ASSIGNED, Status.OPEN},  # citizen reopen: back to the officer, or the queue
     Status.REJECTED: set(),
 }
@@ -172,6 +173,12 @@ def pick(db: Session, officer: User, c: Complaint) -> None:
     move(db, c, Status.ASSIGNED, officer, note=f"Picked up by {officer.name}")
     c.assigned_officer = officer
     c.assigned_at = utcnow()
+
+
+def unassign(db: Session, actor: User, c: Complaint, note: str) -> None:
+    """Put a picked-up ticket back in the ward queue (its officer left or moved)."""
+    move(db, c, Status.OPEN, actor, note=note)
+    c.assigned_officer, c.assigned_at = None, None
 
 
 def set_in_progress(db: Session, officer: User, c: Complaint, note: str | None) -> None:

@@ -13,6 +13,7 @@ import NewComplaint from "./pages/citizen/NewComplaint";
 import Submitted from "./pages/citizen/Submitted";
 import Queue from "./pages/officer/Queue";
 import TicketDetail from "./pages/officer/TicketDetail";
+import Officers from "./pages/admin/Officers";
 import Triage from "./pages/admin/Triage";
 
 function Home() {
@@ -60,6 +61,7 @@ export default function App() {
 
         <Route element={<ProtectedRoute roles={["admin"]} />}>
           <Route path="/admin/triage" element={<Triage />} />
+          <Route path="/admin/officers" element={<Officers />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

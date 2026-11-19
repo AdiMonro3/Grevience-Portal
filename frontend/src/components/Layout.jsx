@@ -10,7 +10,10 @@ const LINKS = {
     { to: "/location", label: "My location" },
   ],
   officer: [{ to: "/officer", label: "My queue", end: true }],
-  admin: [{ to: "/admin/triage", label: "Triage" }],
+  admin: [
+    { to: "/admin/triage", label: "Triage" },
+    { to: "/admin/officers", label: "Officers" },
+  ],
 };
 
 function navCls({ isActive }) {
