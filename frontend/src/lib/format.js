@@ -61,7 +61,18 @@ export function timeAgo(iso) {
 
 /** Compact age for officer tables: "45m", "6h", "3d 4h". */
 export function ageLabel(iso) {
-  const minutes = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  return durationLabel(Date.now() - new Date(iso).getTime());
+}
+
+/** Time to an SLA deadline: "in 5h", or "2d 4h late" once it has passed. */
+export function dueLabel(iso) {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  return ms >= 0 ? `in ${durationLabel(ms)}` : `${durationLabel(-ms)} late`;
+}
+
+function durationLabel(ms) {
+  const minutes = Math.max(0, Math.floor(ms / 60000));
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h`;

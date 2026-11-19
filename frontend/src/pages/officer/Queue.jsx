@@ -4,10 +4,11 @@ import { api, errorMessage } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import StatusBadge, { PriorityBadge, ReopenedBadge } from "../../components/StatusBadge";
 import { EmptyState, ErrorBox, PageLoader } from "../../components/States";
-import { ageLabel } from "../../lib/format";
+import { ageLabel, dueLabel } from "../../lib/format";
 
 const FILTERS = [
   { key: "active", label: "Active", statuses: ["OPEN", "ASSIGNED", "IN_PROGRESS"] },
+  { key: "overdue", label: "⚠ Overdue", test: (c) => c.overdue },
   { key: "OPEN", label: "Open", statuses: ["OPEN"] },
   { key: "ASSIGNED", label: "Assigned", statuses: ["ASSIGNED"] },
   { key: "IN_PROGRESS", label: "In progress", statuses: ["IN_PROGRESS"] },
@@ -41,7 +42,7 @@ export default function Queue() {
     return () => clearInterval(timer);
   }, [load]);
 
-  const matches = (f, c) => !f.statuses || f.statuses.includes(c.status);
+  const matches = (f, c) => (f.test ? f.test(c) : !f.statuses || f.statuses.includes(c.status));
   const current = FILTERS.find((f) => f.key === filter);
   const shown = items?.filter((c) => matches(current, c)) ?? [];
 
@@ -78,7 +79,7 @@ export default function Queue() {
 
       {shown.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[840px] text-left text-sm">
             <thead className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
               <tr>
                 <th className="px-4 py-3">Priority</th>
@@ -86,6 +87,7 @@ export default function Queue() {
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3">Age</th>
+                <th className="px-4 py-3" title="Target fix time from the category's SLA">Due</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3" title="Me too votes">👍</th>
               </tr>
@@ -106,6 +108,15 @@ export default function Queue() {
                     <span className="line-clamp-1 text-slate-600">{c.description}</span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-slate-600">{ageLabel(c.created_at)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {c.overdue ? (
+                      <span className="font-medium text-red-700">⚠ {dueLabel(c.due_at)}</span>
+                    ) : c.due_at && !["RESOLVED", "REJECTED"].includes(c.status) ? (
+                      <span className="text-slate-600">{dueLabel(c.due_at)}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       <StatusBadge status={c.status} />

@@ -2,7 +2,7 @@ import MapView from "./MapView";
 import MediaGallery from "./MediaGallery";
 import StatusBadge, { PriorityBadge, ReopenedBadge } from "./StatusBadge";
 import Timeline from "./Timeline";
-import { STATUS_COLORS, formatDateTime, timeAgo } from "../lib/format";
+import { ACTIVE_STATUSES, STATUS_COLORS, dueLabel, formatDateTime, timeAgo } from "../lib/format";
 
 function Field({ label, children }) {
   return (
@@ -123,6 +123,14 @@ export default function ComplaintView({ complaint: c, staff = false, actions = n
             <dl className="divide-y divide-slate-100">
               <Field label="Department">{c.department?.name || "Being reviewed"}</Field>
               <Field label="Ward">{c.ward?.name || "Being reviewed"}</Field>
+              {c.due_at && ACTIVE_STATUSES.includes(c.status) && (
+                <Field label="Target fix time">
+                  {formatDateTime(c.due_at)}
+                  <span className={`block text-xs ${c.overdue ? "font-semibold text-red-700" : "font-normal text-slate-600"}`}>
+                    {c.overdue ? `⚠ Overdue, ${dueLabel(c.due_at)}` : `Due ${dueLabel(c.due_at)}`}
+                  </span>
+                </Field>
+              )}
               <Field label="Severity (reported)">
                 <span className="capitalize">{c.severity}</span>
               </Field>

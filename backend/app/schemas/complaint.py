@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from app.models import Complaint, MediaPurpose, User
+from app.db import utcnow
+from app.models import Complaint, MediaPurpose, Status, User
+from app.models.enums import ACTIVE_STATUSES
 from app.schemas.common import CategoryBrief, DepartmentOut, UTCDateTime, WardBrief
 from app.services.complaints import reopen_blocker
 from app.services.priority import priority_label
@@ -52,6 +55,8 @@ class ComplaintSummary(BaseModel):
     reopen_count: int
     thumbnail_url: str | None
     assigned_officer_name: str | None
+    due_at: UTCDateTime | None  # created + the category's SLA hours; none while in triage
+    overdue: bool  # still open after due_at
     created_at: UTCDateTime
     updated_at: UTCDateTime
 
@@ -138,7 +143,16 @@ def _thumbnail(c: Complaint) -> str | None:
     return None
 
 
+def due_at(c: Complaint) -> datetime | None:
+    """Target fix time: filed + the category's SLA (e.g. 12 h for live wires, 7 days for parks).
+    None while in triage: nobody owns the ticket yet."""
+    if c.status == Status.TRIAGE or c.category is None or not c.category.sla_hours:
+        return None
+    return c.created_at + timedelta(hours=c.category.sla_hours)
+
+
 def _summary_fields(c: Complaint) -> dict:
+    due = due_at(c)
     return dict(
         ticket_no=c.ticket_no,
         description=c.description,
@@ -157,6 +171,8 @@ def _summary_fields(c: Complaint) -> dict:
         reopen_count=c.reopen_count or 0,
         thumbnail_url=_thumbnail(c),
         assigned_officer_name=c.assigned_officer.name if c.assigned_officer else None,
+        due_at=due,
+        overdue=due is not None and c.status in ACTIVE_STATUSES and utcnow() > due,
         created_at=c.created_at,
         updated_at=c.updated_at,
     )
