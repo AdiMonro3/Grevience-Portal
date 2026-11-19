@@ -5,6 +5,16 @@ export default function StatusBadge({ status }) {
   return <span className={`badge ${meta.cls}`}>{meta.label}</span>;
 }
 
+/** Shown on tickets the citizen reopened because the fix didn't work. */
+export function ReopenedBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span className="badge bg-orange-100 text-orange-800" title="The citizen said the problem was not fixed">
+      ↺ Reopened{count > 1 ? ` ×${count}` : ""}
+    </span>
+  );
+}
+
 const PRIORITY_CLS = {
   P1: "bg-red-600 text-white",
   P2: "bg-orange-500 text-white",

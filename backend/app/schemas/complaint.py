@@ -1,9 +1,10 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.models import Complaint, MediaPurpose, User
 from app.schemas.common import CategoryBrief, DepartmentOut, UTCDateTime, WardBrief
+from app.services.complaints import reopen_blocker
 from app.services.priority import priority_label
 from app.services.storage import media_url
 
@@ -48,6 +49,7 @@ class ComplaintSummary(BaseModel):
     lat: float | None
     lng: float | None
     upvote_count: int
+    reopen_count: int
     thumbnail_url: str | None
     assigned_officer_name: str | None
     created_at: UTCDateTime
@@ -64,6 +66,7 @@ class ComplaintDetail(ComplaintSummary):
     resolution_note: str | None
     closed_with_proof: bool
     resolved_at: UTCDateTime | None
+    can_reopen: bool  # resolved, inside the reopen window, reopens left
     media: list[MediaOut]
     history: list[HistoryOut]
     citizen: PersonBrief | None = None  # only shown to officers/admins
@@ -112,6 +115,12 @@ class AssignIn(BaseModel):
     category_id: int | None = None
 
 
+class ReopenIn(BaseModel):
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=500)] = Field(
+        description="What is still wrong"
+    )
+
+
 class AdminRejectIn(BaseModel):
     reason: str = Field(min_length=3, max_length=1000)
 
@@ -145,6 +154,7 @@ def _summary_fields(c: Complaint) -> dict:
         lat=c.lat,
         lng=c.lng,
         upvote_count=c.upvote_count,
+        reopen_count=c.reopen_count or 0,
         thumbnail_url=_thumbnail(c),
         assigned_officer_name=c.assigned_officer.name if c.assigned_officer else None,
         created_at=c.created_at,
@@ -168,6 +178,7 @@ def to_detail(c: Complaint, include_citizen: bool = False) -> ComplaintDetail:
         resolution_note=c.resolution_note,
         closed_with_proof=c.closed_with_proof,
         resolved_at=c.resolved_at,
+        can_reopen=reopen_blocker(c) is None,
         media=[
             MediaOut(
                 id=m.id,

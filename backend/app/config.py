@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     model_path: Path = BASE_DIR / "app" / "ml" / "model.joblib"
     ml_confidence_threshold: float = 0.5
 
+    # Citizen reopen: allowed this many days after "resolved", this many times per ticket
+    reopen_window_days: int = 14
+    max_reopens: int = 2
+
     # Email (Gmail: smtp.gmail.com:587 + an App Password)
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587

@@ -32,14 +32,30 @@ def utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
+# Columns added after the first release: (table, column, SQL that adds it)
+_LATE_COLUMNS = [
+    (
+        "users",
+        "google_sub",
+        [
+            "ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)",
+        ],
+    ),
+    ("complaints", "reopen_count", ["ALTER TABLE complaints ADD COLUMN reopen_count INTEGER NOT NULL DEFAULT 0"]),
+]
+
+
 def add_missing_columns() -> None:
     """Stopgap until Alembic (Phase 3): upgrade databases created before a column existed.
     create_all() only creates missing tables, never missing columns."""
-    columns = {c["name"] for c in inspect(engine).get_columns("users")}
-    if "google_sub" not in columns:
+    inspector = inspect(engine)
+    for table, column, statements in _LATE_COLUMNS:
+        if column in {c["name"] for c in inspector.get_columns(table)}:
+            continue
         with engine.begin() as conn:
-            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)")
-            conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
+            for sql in statements:
+                conn.exec_driver_sql(sql)
 
 
 def get_db() -> Iterator[Session]:

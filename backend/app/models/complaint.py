@@ -34,6 +34,7 @@ class Complaint(Base):
     status: Mapped[str] = mapped_column(String(20), default=Status.OPEN, index=True)
     priority: Mapped[int] = mapped_column(Integer, default=0, index=True)
     upvote_count: Mapped[int] = mapped_column(Integer, default=0)
+    reopen_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # by the citizen
 
     # Officer workflow
     assigned_officer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

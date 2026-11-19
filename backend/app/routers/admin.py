@@ -25,6 +25,8 @@ def triage_queue(_: Admin, db: DB):
 def assign(ticket_no: str, body: AssignIn, admin: Admin, db: DB, background: BackgroundTasks):
     """Route a triage ticket to a department + ward (optionally fixing the category)."""
     c = get_complaint_or_404(db, ticket_no)
+    if c.status != Status.TRIAGE:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Only tickets in triage can be routed (this one is {c.status})")
     department = db.get(Department, body.department_id)
     ward = db.get(Ward, body.ward_id)
     if department is None or ward is None:

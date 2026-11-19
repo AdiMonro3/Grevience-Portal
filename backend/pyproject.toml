@@ -25,3 +25,18 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = [
+    # Starlette suggests a different HTTP client for TestClient; httpx still works fine
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

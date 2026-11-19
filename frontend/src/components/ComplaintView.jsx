@@ -1,6 +1,6 @@
 import MapView from "./MapView";
 import MediaGallery from "./MediaGallery";
-import StatusBadge, { PriorityBadge } from "./StatusBadge";
+import StatusBadge, { PriorityBadge, ReopenedBadge } from "./StatusBadge";
 import Timeline from "./Timeline";
 import { STATUS_COLORS, formatDateTime, timeAgo } from "../lib/format";
 
@@ -33,7 +33,8 @@ export default function ComplaintView({ complaint: c, staff = false, actions = n
             Filed {formatDateTime(c.created_at)} ({timeAgo(c.created_at)})
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ReopenedBadge count={c.reopen_count} />
           {staff && <PriorityBadge label={c.priority_label} score={c.priority} />}
           <StatusBadge status={c.status} />
         </div>
@@ -69,6 +70,14 @@ export default function ComplaintView({ complaint: c, staff = false, actions = n
               ) : (
                 <p className="text-xs text-green-800">Closed without photo proof.</p>
               )}
+            </section>
+          )}
+
+          {c.status !== "RESOLVED" && proof.length > 0 && (
+            <section className="card">
+              <h2 className="font-semibold">Proof from the earlier fix</h2>
+              <p className="mb-3 text-xs text-slate-500">The citizen reopened this complaint after it was marked resolved.</p>
+              <MediaGallery media={proof} />
             </section>
           )}
 

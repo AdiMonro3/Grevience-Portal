@@ -69,10 +69,20 @@ def _routing_lines(c: Complaint) -> list[tuple[str, str]]:
     ]
 
 
-def _build(c: Complaint, subject: str, intro: str, rows: list[tuple[str, str]], outro: str = "") -> Email:
-    link = _ticket_link(c)
+def _build(
+    c: Complaint,
+    subject: str,
+    intro: str,
+    rows: list[tuple[str, str]],
+    outro: str = "",
+    to: User | None = None,  # default: the citizen who filed it
+    link: str | None = None,
+    button: str = "Track your complaint",
+) -> Email:
+    to = to or c.citizen
+    link = link or _ticket_link(c)
     text_rows = "\n".join(f"{k}: {v}" for k, v in rows)
-    text = f"Hello {c.citizen.name},\n\n{intro}\n\n{text_rows}\n\n{outro}\nTrack your complaint: {link}\n\nGrievance Portal"
+    text = f"Hello {to.name},\n\n{intro}\n\n{text_rows}\n\n{outro}\n{button}: {link}\n\nGrievance Portal"
     html_rows = "".join(
         f'<tr><td style="padding:4px 12px 4px 0;color:#64748b">{escape(k)}</td>'
         f'<td style="padding:4px 0;font-weight:600">{escape(v)}</td></tr>'
@@ -82,14 +92,14 @@ def _build(c: Complaint, subject: str, intro: str, rows: list[tuple[str, str]], 
 <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
   <div style="background:#1d4ed8;color:#fff;padding:16px 20px;font-size:18px;font-weight:bold">Grievance Portal</div>
   <div style="padding:20px;color:#0f172a;font-size:14px;line-height:1.5">
-    <p>Hello {escape(c.citizen.name)},</p>
+    <p>Hello {escape(to.name)},</p>
     <p>{escape(intro)}</p>
     <table style="border-collapse:collapse;margin:12px 0">{html_rows}</table>
     {f"<p>{escape(outro)}</p>" if outro else ""}
-    <p><a href="{escape(link)}" style="background:#1d4ed8;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block">Track your complaint</a></p>
+    <p><a href="{escape(link)}" style="background:#1d4ed8;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block">{escape(button)}</a></p>
   </div>
 </div>"""
-    return Email(to=c.citizen.email, subject=f"[{c.ticket_no}] {subject}", text=text, html=html)
+    return Email(to=to.email, subject=f"[{c.ticket_no}] {subject}", text=text, html=html)
 
 
 def complaint_received(c: Complaint) -> Email:
@@ -134,3 +144,32 @@ def resolved(c: Complaint) -> Email:
         rows.append(("Officer's note", c.resolution_note))
     rows.append(("Proof attached", "Yes, see the ticket page" if c.closed_with_proof else "No"))
     return _build(c, "Complaint resolved", "Good news: your complaint has been marked as resolved.", rows)
+
+
+def reopened_citizen(c: Complaint, reason: str, officer: User | None) -> Email:
+    where = f"Back with {officer.name}" if officer else "Back in the department queue"
+    return _build(
+        c,
+        "Complaint reopened",
+        "You reopened your complaint. It has been sent back for another fix.",
+        [("Ticket", c.ticket_no), ("Status", where), ("Your reason", reason)],
+    )
+
+
+def reopened_officer(c: Complaint, reason: str, officer: User) -> Email:
+    link = f"{settings.frontend_url.rstrip('/')}/officer/tickets/{c.ticket_no}"
+    return _build(
+        c,
+        "Reopened by the citizen",
+        "A complaint you resolved was reopened: the citizen says the problem is not fixed.",
+        [
+            ("Ticket", c.ticket_no),
+            ("Category", c.category.name if c.category else "-"),
+            ("Citizen's reason", reason),
+            ("Times reopened", str(c.reopen_count)),
+        ],
+        "It is back in your queue with a higher priority.",
+        to=officer,
+        link=link,
+        button="Open the ticket",
+    )

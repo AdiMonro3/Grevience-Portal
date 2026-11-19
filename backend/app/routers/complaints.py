@@ -13,6 +13,7 @@ from app.schemas.complaint import (
     ComplaintSummary,
     HistoryOut,
     NearbyItem,
+    ReopenIn,
     UpvoteOut,
     to_detail,
     to_history,
@@ -157,3 +158,18 @@ def upvote(ticket_no: str, user: Citizen, db: DB):
         workflow.recompute_priority(c)
         db.commit()
     return UpvoteOut(ticket_no=c.ticket_no, upvote_count=c.upvote_count, priority=c.priority)
+
+
+@router.post("/{ticket_no}/reopen", response_model=ComplaintDetail)
+def reopen(ticket_no: str, body: ReopenIn, user: Citizen, db: DB, background: BackgroundTasks):
+    """The fix didn't work. Only the citizen who filed it, within the reopen window.
+    Goes back to the same officer (or the department queue) with a higher priority."""
+    c = get_complaint_or_404(db, ticket_no)
+    ensure_can_view(user, c)  # someone else's ticket -> 404
+    reason = body.reason.strip()
+    officer = workflow.reopen(db, user, c, reason)
+    db.commit()
+    email.queue(background, email.reopened_citizen(c, reason, officer))
+    if officer:
+        email.queue(background, email.reopened_officer(c, reason, officer))
+    return to_detail(c)

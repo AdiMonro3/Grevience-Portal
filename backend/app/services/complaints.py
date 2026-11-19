@@ -4,6 +4,8 @@ Routers and the seed script both go through these functions, so the rules
 (who can move a ticket where, what gets logged) live in one place.
 """
 
+from datetime import timedelta
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,7 +33,7 @@ TRANSITIONS: dict[Status, set[Status]] = {
     Status.OPEN: {Status.ASSIGNED, Status.REJECTED},
     Status.ASSIGNED: {Status.IN_PROGRESS, Status.RESOLVED, Status.REJECTED},
     Status.IN_PROGRESS: {Status.RESOLVED, Status.REJECTED},
-    Status.RESOLVED: set(),  # Phase 3: citizen reopen
+    Status.RESOLVED: {Status.ASSIGNED, Status.OPEN},  # citizen reopen: back to the officer, or the queue
     Status.REJECTED: set(),
 }
 
@@ -70,7 +72,7 @@ def move(db: Session, c: Complaint, to: Status, actor: User | None, note: str | 
 
 def recompute_priority(c: Complaint) -> None:
     weight = c.category.weight if c.category else 1
-    c.priority = compute_priority(c.severity, c.urgency, weight, c.upvote_count)
+    c.priority = compute_priority(c.severity, c.urgency, weight, c.upvote_count or 0, c.reopen_count or 0)
 
 
 def _category_by_code(db: Session, code: str) -> Category | None:
@@ -109,6 +111,7 @@ def create_complaint(
         urgency=prediction.urgency,
         urgency_reasons=prediction.urgency_reasons,
         upvote_count=0,
+        reopen_count=0,
     )
 
     confident = predicted is not None and prediction.confidence >= settings.ml_confidence_threshold
@@ -200,3 +203,46 @@ def resolve(db: Session, officer: User, c: Complaint, note: str | None, proof: l
                 size_bytes=f.size_bytes,
             )
         )
+
+
+# ---------------------------------------------------------------- citizen reopen
+
+def reopen_blocker(c: Complaint) -> str | None:
+    """Why this ticket can't be reopened right now, or None if it can."""
+    if c.status != Status.RESOLVED:
+        return "Only resolved complaints can be reopened"
+    if (c.reopen_count or 0) >= settings.max_reopens:
+        return f"This complaint was already reopened {c.reopen_count} times. Please file a new complaint."
+    if c.resolved_at and utcnow() - c.resolved_at > timedelta(days=settings.reopen_window_days):
+        return f"Complaints can be reopened up to {settings.reopen_window_days} days after they are resolved. Please file a new complaint."
+    return None
+
+
+def reopen(db: Session, citizen: User, c: Complaint, reason: str) -> User | None:
+    """The fix didn't work: send the ticket back to the officer who resolved it (or
+    to the department queue if that officer is no longer on this ward).
+    Returns the officer it went back to, if any."""
+    blocker = reopen_blocker(c)
+    if blocker:
+        raise HTTPException(status.HTTP_409_CONFLICT, blocker)
+
+    officer = c.assigned_officer
+    back_to_officer = (
+        officer is not None
+        and officer.is_active
+        and officer.department_id == c.department_id
+        and officer.ward_id == c.ward_id
+    )
+    add_history(db, c, "REOPENED", citizen, note=reason, from_status=c.status)
+    if back_to_officer:
+        move(db, c, Status.ASSIGNED, None, note=f"Sent back to {officer.name}")
+    else:
+        move(db, c, Status.OPEN, None, note="Back in the department queue")
+        c.assigned_officer, c.assigned_at = None, None
+
+    c.reopen_count = (c.reopen_count or 0) + 1
+    c.resolved_at = None
+    c.resolution_note = None
+    c.closed_with_proof = False  # earlier proof photos stay on the ticket
+    recompute_priority(c)
+    return officer if back_to_officer else None

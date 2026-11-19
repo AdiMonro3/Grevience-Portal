@@ -6,6 +6,8 @@ export const STATUS_META = {
   IN_PROGRESS: { label: "In progress", cls: "bg-purple-100 text-purple-800", dot: "bg-purple-500" },
   RESOLVED: { label: "Resolved", cls: "bg-green-100 text-green-800", dot: "bg-green-500" },
   REJECTED: { label: "Rejected", cls: "bg-red-100 text-red-800", dot: "bg-red-500" },
+  // Timeline-only step: the citizen said the fix didn't work
+  REOPENED: { label: "Reopened by citizen", cls: "bg-orange-100 text-orange-800", dot: "bg-orange-500" },
 };
 
 // Hex colours for map markers (Tailwind classes don't reach Leaflet SVG)

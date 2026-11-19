@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { api, errorMessage } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
-import StatusBadge, { PriorityBadge } from "../../components/StatusBadge";
+import StatusBadge, { PriorityBadge, ReopenedBadge } from "../../components/StatusBadge";
 import { EmptyState, ErrorBox, PageLoader } from "../../components/States";
 import { ageLabel } from "../../lib/format";
 
@@ -107,7 +107,10 @@ export default function Queue() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-slate-600">{ageLabel(c.created_at)}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={c.status} />
+                    <div className="flex flex-wrap gap-1">
+                      <StatusBadge status={c.status} />
+                      <ReopenedBadge count={c.reopen_count} />
+                    </div>
                     {c.assigned_officer_name && c.assigned_officer_name !== user.name && (
                       <div className="mt-0.5 text-xs text-slate-500">{c.assigned_officer_name}</div>
                     )}
