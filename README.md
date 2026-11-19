@@ -44,6 +44,22 @@ Without SMTP settings, emails are printed in the API console, so everything stil
 2. In `backend/.env`, set `SMTP_USER=<that gmail>` and `SMTP_PASSWORD=<16-char app password>`.
 3. Seeded users have fake `@gp.demo` addresses. Either register a new citizen with your real email, or set `EMAIL_OVERRIDE_TO=<your inbox>` to receive every email there (best for the projector).
 
+### Sign in with Google (optional)
+
+Login and sign-up show a **Sign in with Google** button once a client ID is set. Without one, the button is hidden.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → create a project → **Google Auth Platform** (APIs & Services → OAuth consent screen). Choose *External*, fill in the app name and support email, and under **Audience** add the Gmail accounts you'll demo with as *test users*. In *Testing* mode, only test users can sign in.
+2. **Clients** → *Create client* → **Web application**. Under *Authorized JavaScript origins*, add `http://localhost:5173` **and** `http://localhost`. You don't need a redirect URI or the client secret.
+3. Put the client ID in `backend/.env` as `GOOGLE_CLIENT_ID=….apps.googleusercontent.com`, then restart the API.
+4. Open the app at `http://localhost:5173`. Google rejects `127.0.0.1` unless you add that origin as well.
+
+How it works: Google's button gives the browser a signed ID token. `POST /auth/google` checks the token's signature against Google's public keys, then checks that the token is for this client ID, was issued by Google, hasn't expired, and has a verified email.
+- **First Google sign-in:** creates a citizen account.
+- **Email matches an existing account:** links to it, so seeded users can try Google too if their email is a real Google account.
+- **Later sign-ins:** matched by Google's account ID.
+
+After signing up with email and password, the user is sent to the login page to log in. Signing up with Google logs them in right away, since Google has already confirmed who they are.
+
 ---
 
 ## Demo script
@@ -91,7 +107,7 @@ Open `/docs` and use **Authorize** with a demo account.
 
 | | |
 |---|---|
-| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `PUT /users/me/location` |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/google`, `GET /auth/providers`, `GET /auth/me`, `PUT /users/me/location` |
 | Reference | `GET /categories`, `/departments`, `/wards`, `/geo/ward`, `/geo/geocode`, `/geo/reverse` |
 | Citizen | `POST /complaints` (multipart), `GET /complaints/mine`, `GET /complaints/nearby`, `GET /complaints/{t}`, `GET /complaints/{t}/history`, `POST /complaints/{t}/upvote` |
 | Officer | `GET /officer/queue`, `GET /officer/complaints/{t}`, `POST …/pick`, `PATCH …/status`, `POST …/resolve` (multipart) |

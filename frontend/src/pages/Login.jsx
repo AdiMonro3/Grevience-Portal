@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { errorMessage } from "../api/client";
 import { homePathFor, useAuth } from "../auth/AuthContext";
-import { ErrorBox, Spinner } from "../components/States";
+import GoogleButton from "../components/GoogleButton";
+import { ErrorBox, Notice, Spinner } from "../components/States";
 
 const DEMO_ACCOUNTS = [
   { label: "Citizen", email: "citizen1@gp.demo" },
@@ -12,22 +13,23 @@ const DEMO_ACCOUNTS = [
 ];
 
 export default function Login() {
-  const { user, login } = useAuth();
+  const { user, login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState("");
+  // Coming from the sign-up page: show a success note and prefill the email
+  const justRegistered = Boolean(location.state?.registered);
+  const [email, setEmail] = useState(location.state?.email || "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   if (user) return <Navigate to={homePathFor(user)} replace />;
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function signIn(doLogin) {
     setBusy(true);
     setError("");
     try {
-      const u = await login(email, password);
+      const u = await doLogin();
       // Back to the page that asked for login; ProtectedRoute bounces wrong roles home
       navigate(location.state?.from || homePathFor(u), { replace: true });
     } catch (err) {
@@ -37,6 +39,11 @@ export default function Login() {
     }
   }
 
+  function handleSubmit(e) {
+    e.preventDefault();
+    signIn(() => login(email, password));
+  }
+
   return (
     <div className="mx-auto mt-6 max-w-md space-y-4">
       <div className="card space-y-4 p-6">
@@ -44,6 +51,12 @@ export default function Login() {
           <h1 className="text-2xl font-bold">Log in</h1>
           <p className="text-sm text-slate-500">Report civic issues and track them till they're fixed.</p>
         </div>
+        {justRegistered && (
+          <Notice tone="success">
+            <b>Account created.</b> Log in with your email and password to continue.
+          </Notice>
+        )}
+        <GoogleButton onCredential={(credential) => signIn(() => loginWithGoogle(credential))} />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="label" htmlFor="email">Email</label>
@@ -51,7 +64,7 @@ export default function Login() {
           </div>
           <div>
             <label className="label" htmlFor="password">Password</label>
-            <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+            <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" autoFocus={justRegistered} />
           </div>
           <ErrorBox message={error} />
           <button className="btn btn-primary w-full" disabled={busy}>

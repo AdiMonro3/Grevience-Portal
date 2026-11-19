@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -30,6 +30,16 @@ class Base(DeclarativeBase):
 def utcnow() -> datetime:
     """Naive UTC timestamp (SQLite has no timezone support; schemas add the tz back)."""
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def add_missing_columns() -> None:
+    """Stopgap until Alembic (Phase 3): upgrade databases created before a column existed.
+    create_all() only creates missing tables, never missing columns."""
+    columns = {c["name"] for c in inspect(engine).get_columns("users")}
+    if "google_sub" not in columns:
+        with engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)")
+            conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
 
 
 def get_db() -> Iterator[Session]:

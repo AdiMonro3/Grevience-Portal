@@ -27,27 +27,41 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, [endSession]);
 
-  const login = useCallback(async (email, password) => {
-    // /auth/login is an OAuth2 form: username + password
-    const body = new URLSearchParams({ username: email, password });
-    const { data } = await api.post("/auth/login", body);
+  const startSession = useCallback((data) => {
     tokenStore.set(data.access_token);
     setSignedOut(false);
     setUser(data.user);
     return data.user;
   }, []);
 
+  const login = useCallback(
+    async (email, password) => {
+      // /auth/login is an OAuth2 form: username + password
+      const body = new URLSearchParams({ username: email, password });
+      const { data } = await api.post("/auth/login", body);
+      return startSession(data);
+    },
+    [startSession],
+  );
+
+  /** `credential` is the ID token from Google's Sign in button; the API verifies it. */
+  const loginWithGoogle = useCallback(
+    async (credential) => {
+      const { data } = await api.post("/auth/google", { credential });
+      return startSession(data);
+    },
+    [startSession],
+  );
+
+  /** Creates the account only. The user logs in afterwards. */
   const register = useCallback(async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    tokenStore.set(data.access_token);
-    setSignedOut(false);
-    setUser(data.user);
-    return data.user;
+    return data;
   }, []);
 
   const value = useMemo(
-    () => ({ user, setUser, loading, signedOut, login, register, logout }),
-    [user, loading, signedOut, login, register, logout],
+    () => ({ user, setUser, loading, signedOut, login, loginWithGoogle, register, logout }),
+    [user, loading, signedOut, login, loginWithGoogle, register, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

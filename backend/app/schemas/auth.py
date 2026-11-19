@@ -10,6 +10,14 @@ class RegisterIn(BaseModel):
     password: str = Field(min_length=6, max_length=72)
 
 
+class GoogleLoginIn(BaseModel):
+    credential: str = Field(min_length=20, max_length=8192, description="ID token from the Sign in with Google button")
+
+
+class AuthProvidersOut(BaseModel):
+    google_client_id: str | None = None
+
+
 class UserOut(ORMModel):
     id: int
     name: str

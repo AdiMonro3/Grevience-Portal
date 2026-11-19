@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24
 
+    # "Sign in with Google": the OAuth 2.0 Web client ID from Google Cloud Console.
+    # Empty = the Google button is hidden. No client secret is needed for this flow.
+    google_client_id: str = ""
+
     # Frontend
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     frontend_url: str = "http://localhost:5173"

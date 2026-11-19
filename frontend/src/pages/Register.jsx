@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router";
 import { errorMessage } from "../api/client";
 import { homePathFor, useAuth } from "../auth/AuthContext";
+import GoogleButton from "../components/GoogleButton";
 import { ErrorBox, Spinner } from "../components/States";
 
 export default function Register() {
-  const { user, register } = useAuth();
+  const { user, register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [error, setError] = useState("");
@@ -21,7 +22,22 @@ export default function Register() {
     setError("");
     try {
       await register({ ...form, phone: form.phone || null });
-      navigate("/location", { replace: true });
+      // Account created: ask them to log in with it
+      navigate("/login", { replace: true, state: { registered: true, email: form.email } });
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Google already confirmed who they are, so this signs them straight in
+  async function handleGoogle(credential) {
+    setBusy(true);
+    setError("");
+    try {
+      const u = await loginWithGoogle(credential);
+      navigate(homePathFor(u), { replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -36,6 +52,7 @@ export default function Register() {
           <h1 className="text-2xl font-bold">Create account</h1>
           <p className="text-sm text-slate-500">Updates on your complaints are sent to this email.</p>
         </div>
+        <GoogleButton text="signup_with" onCredential={handleGoogle} />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="label" htmlFor="name">Full name</label>

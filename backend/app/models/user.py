@@ -15,7 +15,10 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     phone: Mapped[str | None] = mapped_column(String(20))
+    # Google-only accounts get a hash of a random secret, so password login never matches
     password_hash: Mapped[str] = mapped_column(String(255))
+    # Google's stable account id ("sub" claim), set on first Google sign-in
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     role: Mapped[str] = mapped_column(String(20), default=Role.CITIZEN, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 

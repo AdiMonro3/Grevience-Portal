@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import models  # noqa: F401  (registers tables on Base.metadata)
 from app.config import settings
-from app.db import Base, engine
+from app.db import Base, add_missing_columns, engine
 from app.routers import admin, auth, complaints, meta, officer
 from app.services.ml import classifier
 
@@ -18,6 +18,7 @@ settings.media_dir.mkdir(parents=True, exist_ok=True)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)  # Alembic migrations come in Phase 3
+    add_missing_columns()
     classifier.load()
     yield
 
